@@ -823,6 +823,176 @@ STL中hash_map扩容发生什么？
     各种资源的管理 消息缓冲器管理  广度游戏搜索遍历
 ```
 
+
+如何设计一个C++类？实现String类。
+```
+class String
+{
+
+public:
+    String(const char *str = NULL);            //通用构造函数
+    String(const String &str);                 //拷贝构造函数
+    ~String();                                 //析构函数
+    String operator+(const String &str) const; //重载+
+    String &operator=(const String &str);      //重载+
+    String &operator+=(const String &str);     //重载+
+    bool operator==(const String &str) const;  //重载+
+    char &operator[](int n) const;             //重载[]
+    size_t size() const;                       //获取长度
+    const char *c_str() const;                 //获取C字符串
+private:
+    char *data;
+    size_t length;
+};
+
+String::String(const char *str)
+{
+    if (str == NULL)
+    {
+        length = 0;
+        data = new char[1];
+        *data = '\0';
+    }
+    else
+    {
+        length = strlen(str);
+        data = new char[length + 1];
+        strcpy(data, str);
+    }
+}
+
+String::String(const String &str)
+{
+    length = str.length;
+    data = new char[length + 1];
+    strcpy(data, str.c_str());
+}
+
+String::~String()
+{
+    delete[] data;
+    length = 0;
+}
+
+String String::operator+(const String &str) const
+{
+    String newStr;
+    newStr.length = length + str.length;
+    newStr.data = new char[newStr.length + 1];
+    strcpy(newStr.data, data);
+    strcat(newStr.data, str.c_str());
+    return newStr;
+}
+
+String &String::operator=(const String &str)
+{
+    if (this == &str)
+        return *this;
+    delete[] data;
+    data = new char[str.length + 1];
+    length = str.length;
+    strcpy(data, str.c_str());
+    return *this;
+}
+
+bool String::operator==(const String &str) const
+{
+    if (length != str.length)
+        return false;
+    return strcmp(data, str.data) ? false : true;
+}
+
+char &String::operator[](int n) const
+{
+    if (n > length)
+        return data[length - 1];
+    else
+    {
+        return data[n];
+    }
+}
+
+size_t String::size() const
+{
+    return length;
+}
+
+const char *String::c_str() const
+{
+    return data;
+}
+```
+STL的Vector原理及迭代器失效的理解。
+```
+迭代器失效: 
+    当使用一个容器的insert或者erase函数通过迭代器插入或删除元素"可能"会导致迭代器失效，因此我们为了避免危险，
+    应该获取insert或者erase返回的迭代器，以便用重新获取的新的有效的迭代器进行正确的操作 
+迭代器失效的类型：
+  1.由于插入元素，使得容器元素整体“迁移”导致存放原容器元素的空间不再有效，从而使得指向原空间的迭代器失效。
+  2.由于删除元素使得某些元素次序发生变化使得原本指向某元素的迭代器不再指向希望指向的元素。
+```
+谈谈std::move的理解和使用
+```
+std::move和std::forward仅仅是进行类型转换的函数（实际上是函数模板）。
+std::move无条件的将其参数转换为右值，而std::forward只在必要情况下进行这个转换
+move的功能:
+    1.std::move执行一个无条件的转化到右值。它本身并不移动任何东西；
+    2.std::forward把其参数转换为右值，仅仅在那个参数被绑定到一个右值时；
+    3.std::move和std::forward在运行时（runtime）都不做任何事。
+为什么使用move而不是copy
+1、 提高效率,某些情况下不需要copy，直接移动就行,如vector数组就不需要copy
+2、 IO类或unique_ptr包含不能共享的资源,这些对象不能拷贝,只能移动
+------------------------------------------------------------
+移动的是堆上内存的所有权，其他类型的与拷贝没什么区别
+```
+关于new和malloc以及delete和frees是否可以混用
+```
+当申请的空间是内置类型时，delete和free可以混用
+当申请的空间是自定义类型时，
+    若没有析构函数，delete和malloc可以混用，有[]和没有[]都相同
+    若申请的空间有析构函数时，malloc申请的空间可以用delete和free释放，但是用delete释放时不能加[]
+    若申请的空间有析构函数时，new申请的空间不能用free释放，可以用delete释放，但是释放时必须加上[]
+```
+STL的Map基于红黑树实现的原因，为什么不选择哈希表
+```
+map始终保证遍历的时候是按key的大小顺序的，这是一个主要的功能上的差异
+map可以做范围查找，而unordered_map不可以。
+map的iterator除非指向元素被删除，否则永远不会失效。unordered_map的iterator在对unordered_map修改时有时会失效。
+因为3，所以对map的遍历可以和修改map在一定程度上并行（一定程度上的不一致通常可以接受），而对unordered_map的遍历必须防止修改
+map的iterator可以双向遍历，这样可以很容易查找到当前map中刚好大于这个key的值，或者刚好小于这个key的值
+
+```
+map[]和find的区别
+```
+map的下标运算符[]的作用是：将关键码作为下标去执行查找，并返回对应的值；
+如果不存在这个关键码，就将一个具有该关键码和值类型的默认值的项插入这个map。
+
+find: 用关键码执行查找，找到了返回该位置的迭代器；如果不存在这个关键码，就返回尾迭代器
+find更快 不需要插入值  测试下？
+```
+
+C++的四种强制转型形式每一种适用于特定的目的： 
+```
+dynamic_cast:
+    主要用于执行“安全的向下转型（safe downcasting）”，也就是说，
+    要确定一个对象是否是一个继承体系中的一个特定类型。
+    它是唯一不能用旧风格语法执行的强制转型，也是唯一可能有重大运行时代价的强制转型
+static_cast:
+    可以被用于强制隐型转换
+        （例如，non-const 对象转型为 const 对象，int 转型为 double，等等），
+    它还可以用于很多这样的转换的反向转换
+        （例如，void* 指针转型为有类型指针，基类指针转型为派生类指针），
+    但是它不能将一个 const 对象转型为 non-const 对象（只有 const_cast 能做到），
+    它最接近于C-style的转换。
+const_cast:
+     一般用于强制消除对象的常量性。它是唯一能做到这一点的 C++ 风格的强制转型。 
+reinterpret_cast:
+    是特意用于底层的强制转型，导致实现依赖（implementation-dependent）
+    （就是说，不可移植）的结果，
+    例如，将一个指针转型为一个整数。这样的强制转型在底层代码以外应该极为罕见
+```
+
+
 ### 编程基础
 
 手写strcpy

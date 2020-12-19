@@ -1,15 +1,12 @@
 1. 使⽤两种命令创建⼀个⽂件？
-
+```
 a. touch a.txt
-
 b. vi a.txt
-
 c. mkdir abc
-
 d. cat > a.txt 建⽴⼀⽂件，然后把接下来的键盘输⼊写⼊⽂件，直到按Ctrl+D为⽌.
-
+```
 2. 硬链接和软连接的区别？
-
+```
 a. 硬链接：
 
 1、⽂件有相同的 inode 及 data block；
@@ -35,9 +32,9 @@ b. 软链接：
 5、创建软链接时，链接计数 i_nlink 不会增加；
 
 6、删除软链接并不影响被指向的⽂件，但若被指向的原⽂件被删除，则相关软连接被称为死链接（即 dangling link，若被指向路径⽂件被重新创建，死链接可恢复为正常的软链接）。
-
+```
 3. linux常⽤命令有哪些？
-
+```
 查找关闭端⼝进程 netstat -nlp | grep :3306 kill pid
 
 删除⽂件 rm -rf
@@ -49,7 +46,7 @@ b. 软链接：
 创建⽂件 touch filename cat > filename
 
 修改⽂件 vi
-
+```
 4. 怎么查看⼀个java线程的资源耗⽤？
 
 linux下，所有的java内部线程，其实都对应了⼀个进程id，也就是说，linux上的jvm将java程序中的线程映射为操作系统进 程。

@@ -1,5 +1,5 @@
 ### C++基础
-
+---------------------------------
 extern 关键字的作用
 ```
     extern声明变量在外部的定义？
@@ -13,7 +13,6 @@ extern 关键字的作用
         由于C++支持函数重载,因此编译器编译函数的过程中会将函数的参数类型加到编译后的代码中,而不仅仅是函数名;
         而C语言不支持函数重载,因此编译C语言代码不会带上函数的参数类型,一般只包含函数名；
 ```
-
 为什么要使用字节对齐
 ```
 字节对齐是C/C++编译器的一种技术手段，主要是在可接受空间浪费的前提下，尽可能地提高对相同元素过程的快速处理。
@@ -1261,117 +1260,3 @@ const char *String::c_str() const
     return data;
 }
 ```
-
-### 编程基础
-
-手写strcpy
-```
-char strcpy(char dst, const char src)
-{
-    assert(dst);
-    assert(src);
-    char ret = dst;
-    while((dst++ = src++) != '\0');
-    return ret;
-}
-//该函数是没有考虑重叠的
-char strcpy(char dst, const char src)
-{
-    assert((dst != NULL) && (src != NULL));
-    char ret = dst;
-    int size = strlen(src) + 1;
-    if(dst > src || dst < src + len)
-    {
-        dst = dst + size - 1;
-        src = src + size - 1;
-        while(size--)
-        {
-            dst-- = src--;
-        }
-    }
-    else
-    {
-        while(size--)
-        {
-            dst++ = src++;
-        }
-    }
-    return ret;
-}
-```
-手写memcpy函数
-```
-void memcpy(void dst, const void src, size_t size)
-{
-    if(dst == NULL || src == NULL)
-    {
-        return NULL;
-    }
-    void res = dst;
-    char pdst = (char)dst;
-    char psrc = (char)src;
-    if(pdst > psrc && pdst < psrc + size) //重叠
-    {
-        pdst = pdst + size - 1;
-        psrc = pdst + size - 1;
-        while(size--)
-        {
-            *pdst-- = *psrc--;
-        }
-    }
-    else //无重叠
-    {
-        while(size--)
-        {
-            *dst++ = *src++;
-        }
-    }
-    return ret;
-}
-```
-手写strcat函数
-```
-char strcat(char dst, const char src)
-{
-    char ret = dst;
-    while(*dst != '\0')
-        ++dst;
-    while((*dst++ = *src) != '\0');
-    return ret;
-}
-```
-手写strcmp函数
-```
-int strcmp(const char str1, const char str2)
-{
-    while(*str1 == *str2 && *str1 != '\0')
-    {
-        ++str1;
-        ++str2;
-    }
-    return *str1 - *str2;
-}
-```
-判断大小端
-```
-union un
-{
-int i;
-char ch;
-};
-
-void fun()
-{
-    union un test;
-    test.i = 1;
-    if(ch == 1)
-    cout << "小端" << endl;
-        else
-    cout << "大端" << endl;
-}
-```
-
-1、红黑树放弃了追求完全平衡，追求大致平衡，在与平衡二叉树的时间复杂度相差不大的情况下，保证每次插入最多只需要三次旋转就能达到平衡，实现起来也更为简单。
-
-2、平衡二叉树追求绝对平衡，条件比较苛刻，实现起来比较麻烦，每次插入新节点之后需要旋转的次数不能预知。
-

@@ -100,7 +100,12 @@ panic终止程序执行,recover终止panic执行
 什么时栈扫描
 ```
 
+channel select 与 goroutine
+```
+channel 是一个线程安全的先进先出的队列，
 
+
+```
 
 
 

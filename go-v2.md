@@ -42,11 +42,42 @@ slice:
 ```
 make和new的区别
 ```
+1. make 只用于slice,map,channel，返回的是初始化之后的T类型的值，
+    这个值是经过初始化之后的T的引用，作为函数传参之后在函数内部修改
+    将影响函数外部的值;
+2. new返回的T的指针*T并指向T的零值
 ```
 channel 相关
 ```
 结构:
-
+    type hchan struct {
+    qcount   uint           // 队列中数据个数
+    dataqsiz uint           // channel 大小
+    buf      unsafe.Pointer // 存放数据的环形数组
+    elemsize uint16         // channel 中数据类型的大小
+    closed   uint32         // 表示 channel 是否关闭
+    elemtype *_type // 元素数据类型
+    sendx    uint   // send 的数组索引
+    recvx    uint   // recv 的数组索引
+    recvq    waitq  // 由 recv 行为（也就是 <-ch）阻塞在 channel 上的 goroutine 队列
+    sendq    waitq  // 由 send 行为 (也就是 ch<-) 阻塞在 channel 上的 goroutine 队列
+    lock mutex
+}
+使用:
+    1. 重复关闭channel会导致panic
+    2. 向关闭的channel发送数据会panic
+    3. 从关闭的channel读数据不会panic
+典型用法:
+    1. goroutine通信 goroutine中写入，goroutine外读出
+    2. select 一般配合for使用，管理多个channel的读写
+    3. range channel 可以直接读取channel的值，当使用range来操作的时候，
+       一旦channel关闭,channel内部数据读完之后循环自动结束。
+    4. 超时控制
+        select {
+            case <- ch:
+            case <time.After(2):        
+        }
+    5. 生产者消费者模型
 ```
 
 进程,线程,协程的异同

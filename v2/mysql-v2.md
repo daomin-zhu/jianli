@@ -107,8 +107,35 @@ B*树：
     在B+树基础上，为非叶子结点也增加链表指针，
     将结点的最低利用率从1/2提高到2
 ```
+为什么索引使用B+树
+```
+1、 B+树的磁盘读写代价更低
+    B+树的内部节点并没有执行关键字具体信息的指针,因此器内部节点相对B树
+    更小,如果把索引同一内部节点的关键字存放在同一盘块中，那么盘块所能容纳的
+    关键字数量也越多,一次性读入内存的需要查找的关键字也就越多，相对IO读写次数
+    就降低了
+2、 由于B+树的数据都存储再叶子节点中,分组节点均为索引,方便扫库，只需要扫一遍叶子节点
+    即可，但是B树因为其分组节点同样存储者数据,如果需要找数据的化，就需要进行一次中序
+    遍历,所以B+树更适合在区间查询的情况
+```
 
 #### 索引优化
+
+MySQL的联合索引
+```
+定义:
+    对多个字段同时建立的索引
+    (有顺序，ABC，ACB是完全不同的两种联合索引。)
+好处:
+    建立这样的索引相当于建立了索引a、ab、abc三个索引。
+    节省写操作开销和磁盘空间开销
+注意项:
+    单个索引需要注意的事项，组合索引全部通用。
+    最左匹配原则。(A,B,C) 这样3列，mysql会首先匹配A，然后再B，C.
+    如果用(B,C)这样的数据来检索的话，就会找不到A使得索引失效。
+    如果使用(A,C)这样的数据来检索的话，就会先找到所有A的值然后匹配C，
+    此时联合索引是失效的。
+```
 建立索引的原则
 ```
 1、最左前缀匹配原则,mysql会一直向右匹配直到遇到范围查询(>、<、between、like)就停止匹配
@@ -222,24 +249,251 @@ Serializable（序列化）：
     序列化是最高的事务隔离级别，同时代价也花费最高，性能很低，一般很少使用，
     在该级别下，事务顺序执行，不仅可以避免脏读、不可重复读，还避免了幻像读。 
 ```
+MySQL redo日志和undo日志、二进制日志
+```
+定义:
+innodb事务日志包括redo log和undo log。
+redo log是重做日志，提供前滚操作，
+undo log是回滚日志，提供回滚操作。
+二进制日志:
+    引起或可能引起数据库改变的事件
+    只在事务提交的时候写入，提交之前写入cache,提交时写入
+----------------------------------------
+innodb通过force log at commit机制实现事务的持久性:
+    即在事务提交的时候，必须先将该事务的所有事务日志写入到磁盘上
+    的redo log file和undo log file中进行持久化
+MySQL支持用户定义在commit时如何将log buffer中的日志刷log file
+设置为1时:
+    事务每次提交都会将log buffer中的日志写入os buffer并调用fsync
+    刷到file on desk ; 数据不会丢失,IO性能较差
+设置为0时:
+    事务提交时不会将log buffer中的日志写入到os buffer，而是每秒
+    写入os buffer并调用fsync()写入到file on disk
+设置为2时:
+    每次提交都仅写入到os buffer，然后时每秒调用fsync()将os buffer
+    中的日志写入到file on disk
+--------------------------------------------------------------
+
+redo log:
+    通常是物理日志，记录的是数据页的物理修改，而不是某一行或某几行修改成怎样怎样，
+    它用来恢复提交后的物理数据页(恢复数据页，且只能恢复到最后一次提交的位置)。
+undo:
+    作用:
+        提供回滚
+        多个行版本控制(MVCC)
+    undo log是逻辑日志。可以认为当delete一条记录时，undo log中会记录一条对应的insert记录，反之亦然，
+    当update一条记录时，它记录一条对应相反的update记录。
+    undo log也会产生redo log 因为undo log也要实现持久性保护
+
+------------------------------------------------------------------------------
+delete update 如何操作
+delete 操作不好直接删除,而是将delete对象打上flag,标记为删除，
+    最终的删除操作有purge线程处理
+update分两种情况:
+    不是主键列,在undo log中直接反向记录是如何update的
+    是主键列,先删除该行,在插入一行目标行                                            
+    
+```
+
+redo日志
+```
+重做日志:
+    数据写到数据库之前，先记录修改日志，在操作到具体的行数据
+redo日志何时刷新到磁盘?
+    log buffer空间不足 mysql认为日志占总容量的一半即写入日志
+    事务提交时,redo日志会刷新到磁盘
+后台线程不同的刷新：
+    后台线程定时刷新到磁盘
+checkpoint:
+    https://juejin.cn/post/6863824667510046734
+```
+undo日志
+```
+记录回滚语句
+```
+mvcc
+```
+https://www.cnblogs.com/xuwc/p/13873611.html
+```
 
 #### 底层实现
-
 
 ### sql考察
 
 #### sql优化
 
-#### sql例子
+explain用法
 
-
-
-索引
---------------------------------------------------------
-分类:
---------------------------------------------------------
 ```
-InnoDB与MyISAM区别
+id: 
+    一般来说一个select一个唯一id,如果是子查询,就有两个select,id是不一样的
+select_type:
+    simple: 不包含union和子查询的查询都算simple类型
+    primary:
+        包括union union all ，其中最左边的查询即为primary
+    union:
+        包括union union all 除了最左边的查询，其他的查询类型为union
+table:
+    现在这一行是关于哪张表的
+type: 访问方法
+    ref:
+        普通二级索引与常量进行等值匹配
+    ref_or_null:
+        普通二级索引与常量进行等值匹配，该索引可能为null
+    const:
+        主键活唯一二级索引列与常量进行等值匹配
+    range:
+        范围区间的查询
+    all:
+        全表扫描
+key:
+    经过查询优化器计算不同索引的成本,最终选择的成本最低的索引
+rows:
+    全表扫描时代表需要扫描的行数
+    使用索引代表预计扫描的行数
+
+```
+sql语句执行的流程
+```
+1、 客户端连接到MySQL服务器时,服务器对其进行认证
+2、 正式查询前回检测查询缓存，如果存在就返回结果
+3、 缓存不存在,解析器回根据查询语句构造解析树,
+    用于根据语法规则严重语句是否正确
+4、 查询优化器将解析树转化为查询计划,优化器会执行
+    自己认为的最优的执行计划
+5、 执行计划调用查询执行引擎,查询引擎通过一系列API接口查询到数据
+6、 得到数据后，返回给客户端数据同时将数据存在查询缓存中
+查询缓存器：
+    默认关闭
+```
+
+
+![表结构](https://upload-images.jianshu.io/upload_images/8020666-3bddcbf9c5bc478c.png?imageMogr2/auto-orient/strip|imageView2/2/w/548/format/webp)
+
+
+sql例子
+```
+
+1.查询不及格数大于等于2门的学生的平均成绩
+ select name,sum(chengji<60) as jimen, avg(chengji) as pingjun from student GROUP BY name having jimen >=2;
+
+2.查询每个学生的最好成绩的科目
+select t1.name,t1.chengji,t1.kemu from student t1,
+ (select name,max(chengji) as maxchengji,kemu from student GROUP BY name) t2
+ where t1.name = t2.name and t1.chengji = t2.maxchengji;
+ 
+3.查询每个科目最好成绩的同学
+select t1.name,t1.kemu,t1.chengji from student t1,
+ (select max(chengji) as maxchengji,kemu from student group by kemu) t2
+ where t1.kemu = t2.kemu and t1.chengji = t2.maxchengji;
+4.数学成绩排名
+select name,chengji,
+(select count(*) from student t1 where kemu ='数学' and t1.chengji > t2.chengji)+1 as 名次 from student t2  
+where kemu='数学' order by chengji desc;
+
+```
+四表查询
+```
+给定四个表:
+student 学生表
+teacher 老师表
+course 课程表
+sc 成绩表
+
+1. 查询都学过2号同学(sid=2)学习过的课程的同学的学号
+
+SELECT sid 
+FROM sc 
+WHERE cid IN (SELECT cid FROM sc WHERE sid=2) GROUP BY sid 
+HAVING COUNT(*) = (SELECT COUNT(*) FROM sc WHERE sid=2)
+
+2. 查询“语文(cid=1)”比“数学(cid=2)”课程成绩高的所有学生的学号
+SELECT a.sid 
+FROM 
+(SELECT sid, score FROM sc WHERE cid=1) a, (SELECT sid, score FROM sc WHERE cid=2) b 
+WHERE a.sid=b.sid AND a.score > b.score;
+
+3. 查询平均成绩大于60分的同学的学号和平均成绩
+SELECT sid, AVG(score) FROM `sc` 
+GROUP BY sid 
+HAVING AVG(score) > 60;
+4. 查询所有同学的学号、姓名、选课数、总成绩
+SELECT a.sid, a.sname, COUNT(a.cid), SUM(a.score) FROM(SELECT student.sid, student.sname, sc.cid, sc.score FROM student JOIN sc WHERE student.sid=sc.sid) a
+GROUP BY sid;
+
+5. 查询没学过“叶平”老师课的同学的学号姓名
+
+SELECT student.sid,student.sname
+FROM student  
+WHERE sid NOT IN 
+ (
+     SELECT DISTINCT(sc.sid) 
+     FROM sc, course, teacher 
+     WHERE  sc.cid=course.cid AND teacher.tid=course.tid AND teacher.tname='叶平'
+    );
+6. 查询学过“语文(cid=1)”并且也学过“数学(cid=2)”课程的同学的学号姓名
+SELECT student.sid,student.sname 
+FROM student, sc 
+WHERE student.sid=sc.sid AND sc.cid=1 AND 
+EXISTS ( SELECT * FROM sc AS sc_2 WHERE sc_2.sid=sc.sid AND sc_2.cid=2);
+7. 查询学过“叶平”老师所教的所有课的同学的学号、姓名；
+SELECT student.sid,student.sname 
+FROM student 
+WHERE sid IN 
+  (
+   SELECT sid 
+   FROM sc ,course ,teacher 
+   WHERE sc.cid=course.cid AND teacher.tid=course.tid AND teacher.tname='叶平' 
+   GROUP BY sid
+   HAVING COUNT(sc.cid)=
+      (
+          SELECT COUNT(cid) 
+          FROM course,teacher
+          WHERE teacher.tid=course.tid AND teacher.tname='叶平'
+      )
+  );
+8. 查询课程编号“数学（cid=2）”的成绩比课程编号“语文（cid=1）”课程低的所有同学的学号、姓名
+SELECT sid,sname 
+FROM student
+WHERE sid=(
+ SELECT a.sid 
+ FROM 
+  (SELECT sid, score FROM sc WHERE cid=1) a, 
+  (SELECT sid, score FROM sc WHERE cid=2) b 
+ WHERE a.sid=b.sid AND a.score > b.score)
+9. 查询所有课程成绩小于60分的同学的学号、姓名；
+SELECT sid,sname 
+FROM student 
+WHERE sid NOT IN 
+(
+    SELECT student.sid FROM student AS s,sc WHERE s.sid=sc.sid AND score>60);
+10. 查询没有学全所有课的同学的学号、姓名；
+SELECT student.sid, student.sname
+FROM student,sc
+WHERE student.sid=sc.sid
+GROUP BY sid 
+HAVING COUNT(cid) < (SELECT COUNT(cid) FROM course)
+11. 按平均成绩从高到低显示所有学生的“语文“、“数学”、“英语”三门的课程成绩，按如下形式显示： 学生ID,语文,数学,英语,有效课程数,有效平均分
+SELECT sid AS 学生ID,(SELECT score FROM sc WHERE sc.sid=sc_2.sid AND cid=1) AS 语文,(SELECT score FROM sc WHERE sc.sid=sc_2.sid AND cid=2) AS 数学,(SELECT score FROM sc WHERE sc.sid=sc_2.sid AND cid=3) AS 英语,COUNT(*) AS 有效课程数, AVG(score)FROM sc AS sc_2
+GROUP BY sid
+ORDER BY AVG(sc_2.score)
+12. 查询两门及两门以上不及格课程的同学的学号及其平均成绩
+SELECT sid, AVG(score) FROM sc WHERE sid IN (SELECT sid FROM sc WHERE score < 60 GROUP BY sid HAVING COUNT(*)>1) GROUP BY sid;
+```
+
+
+### 存储引擎
+
+#### 常见的存储引擎
+```
+InnoDB: MySQL 默认的存储引擎，支持事务、MVCC、外键、行级锁和自增列。
+MyISAM: 支持全文索引、压缩、空间函数、表级锁，不支持事务，插入速度快。
+Memory: 数据都在内存中，数据的处理速度快，但是安全性不高。
+ARCHIVE: 常用于历史归档表，占用空间小，数据不能更新删除。
+```
+
+####InnoDB与MyISAM区别
+
 ```
 1、 InnoDB支持事务，MyISAM不支持
     对于InnoDB每一条SQL语言都默认封装成事务
@@ -258,28 +512,9 @@ InnoDB与MyISAM区别
     Innodb：frm是表定义文件，ibd是数据文件
     Myisam：frm是表定义文件，myd是数据文件，myi是索引文件
 ```
+###高级应用
 
-B-与B+树区别
-```
-```
-
-MySQL的联合索引
-```
-定义:
-    对多个字段同时建立的索引
-    (有顺序，ABC，ACB是完全不同的两种联合索引。)
-好处:
-    建立这样的索引相当于建立了索引a、ab、abc三个索引。
-    节省写操作开销和磁盘空间开销
-注意项:
-    单个索引需要注意的事项，组合索引全部通用。
-    最左匹配原则。(A,B,C) 这样3列，mysql会首先匹配A，然后再B，C.
-    如果用(B,C)这样的数据来检索的话，就会找不到A使得索引失效。
-    如果使用(A,C)这样的数据来检索的话，就会先找到所有A的值然后匹配C，
-    此时联合索引是失效的。
-```
 为什么要分库分表
-（设计高并发系统的时候，数据库层面应该如何设计）
 ```
 原因:
     分库和分表都是为了防止数据库服务因为同一时间的访问量（增删查改）
@@ -303,7 +538,6 @@ MySQL的联合索引
         数据量的增加依然会带来大量的问题
 -----------------------------------------------------------------------
 ```
-
 分库分表
 ```
 分表:
@@ -340,121 +574,3 @@ MySQL的联合索引
     比如我们购买了商品，订单表可能进行了拆分等等，此时结果合并就比较困难。 
 ```
 
-sql语句执行的流程
-```
-1、 客户端连接到MySQL服务器时,服务器对其进行认证
-2、 正式查询前回检测查询缓存，如果存在就返回结果
-3、 缓存不存在,解析器回根据查询语句构造解析树,
-    用于根据语法规则严重语句是否正确
-4、 查询优化器将解析树转化为查询计划,优化器会执行
-    自己认为的最优的执行计划
-5、 执行计划调用查询执行引擎,查询引擎通过一系列API接口查询到数据
-6、得到数据后，返回给客户端数据同时将数据存在查询缓存中
--------------------------------------------------
-查询缓存器：
-    默认关闭
-```
-为什么索引使用B+树
-```
-1、 B+树的磁盘读写代价更低
-    B+树的内部节点并没有执行关键字具体信息的指针,因此器内部节点相对B树
-    更小,如果把索引同一内部节点的关键字存放在同一盘块中，那么盘块所能容纳的
-    关键字数量也越多,一次性读入内存的需要查找的关键字也就越多，相对IO读写次数
-    就降低了
-2、 由于B+树的数据都存储再叶子节点中,分组节点均为索引,方便扫库，只需要扫一遍叶子节点
-    即可，但是B树因为其分组节点同样存储者数据,如果需要找数据的化，就需要进行一次中序
-    遍历,所以B+树更适合在区间查询的情况
-```
-explain用法
-```
-id: 
-    一般来说一个select一个唯一id,如果是子查询,就有两个select,id是不一样的
-select_type:
-    simple: 不包含union和子查询的查询都算simple类型
-    primary:
-        包括union union all ，其中最左边的查询即为primary
-    union:
-        包括union union all 除了最左边的查询，其他的查询类型为union
-table:
-    现在这一行是关于哪张表的
-type: 访问方法
-    ref:
-        普通二级索引与常量进行等值匹配
-    ref_or_null:
-        普通二级索引与常量进行等值匹配，该索引可能为null
-    const:
-        主键活唯一二级索引列与常量进行等值匹配
-    range:
-        范围区间的查询
-    all:
-        全表扫描
-key:
-    经过查询优化器计算不同索引的成本,最终选择的成本最低的索引
-rows:
-    全表扫描时代表需要扫描的行数
-    使用索引代表预计扫描的行数
-
-```
-MySQL redo日志和undo日志、二进制日志
-```
-innodb事务日志包括redo log和undo log。
-redo log是重做日志，提供前滚操作，
-undo log是回滚日志，提供回滚操作。
-二进制日志:
-    引起或可能引起数据库改变的事件
-    只在事务提交的时候写入，提交之前写入cache,提交时写入
-----------------------------------------
-innodb通过force log at commit机制实现事务的持久性:
-    即在事务提交的时候，必须先将该事务的所有事务日志写入到磁盘上
-    的redo log file和undo log file中进行持久化
-MySQL支持用户定义在commit时如何将log buffer中的日志刷log file
-设置为1时:
-    事务每次提交都会将log buffer中的日志写入os buffer并调用fsync
-    刷到file on desk ; 数据不会丢失,IO性能较差
-设置为0时:
-    事务提交时不会将log buffer中的日志写入到os buffer，而是每秒
-    写入os buffer并调用fsync()写入到file on disk
-设置为2时:
-    每次提交都仅写入到os buffer，然后时每秒调用fsync()将os buffer
-    中的日志写入到file on disk
---------------------------------------------------------------
-
-redo log:
-    通常是物理日志，记录的是数据页的物理修改，而不是某一行或某几行修改成怎样怎样，
-    它用来恢复提交后的物理数据页(恢复数据页，且只能恢复到最后一次提交的位置)。
-undo:
-    作用:
-        提供回滚
-        多个行版本控制(MVCC)
-    undo log是逻辑日志。可以认为当delete一条记录时，undo log中会记录一条对应的insert记录，反之亦然，当update一条记录时，它记录一条对应相反的update记录。
-    undo log也会产生redo log 因为undo log也要实现持久性保护
-
-------------------------------------------------------------------------------
-delete update 如何操作
-delete 操作不好直接删除,而是将delete对象打上flag,标记为删除，
-    最终的删除操作有purge线程处理
-update分两种情况:
-    不是主键列,在undo log中直接反向记录是如何update的
-    是主键列,先删除该行,在插入一行目标行                                            
-    
-```
-
-redo日志
-```
-重做日志:
-    数据写到数据库之前，先记录修改日志，在操作到具体的行数据
-redo日志何时刷新到磁盘?
-    log buffer空间不足 mysql认为日志占总容量的一半即写入日志
-    事务提交时,redo日志会刷新到磁盘
-后台线程不同的刷新：
-    后台线程定时刷新到磁盘
-checkpoint:
-    ???
-```
-undo日志
-```
-记录回滚语句
-```
-mvcc
-```
-```
